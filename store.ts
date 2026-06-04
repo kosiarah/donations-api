@@ -1,40 +1,41 @@
-import { Donation, NewDonation } from "./types.js";
+import { DonationModel, Donation } from "./donation.model.js";
 
-// in-memory data — will be replaced by MongoDB in the next task
-let donations: Donation[] = [
-  { id: 1, charityId: 10, donor: "Alice", amount: 25.0 },
-  { id: 2, charityId: 10, donor: "Bob", amount: 5.5 },
-  { id: 3, charityId: 20, donor: "Carol", amount: 100.0 },
-];
-let nextId = 4;
-
-export function getAll(): Donation[] {
-  return donations;
-}
-
-export function getById(id: number): Donation | undefined {
-  return donations.find((d) => d.id === id);
-}
-
-export function create(input: NewDonation): Donation {
-  const donation: Donation = { id: nextId++, ...input };
-  donations.push(donation);
-  return donation;
-}
-
-export function remove(id: number): boolean {
-  const index = donations.findIndex((d) => d.id === id);
-  if (index === -1) return false;
-  donations.splice(index, 1);
-  return true;
-}
-
-export function summaryByCharity(charityId: number): {
+export type NewDonation = {
   charityId: number;
-  count: number;
-  total: number;
-} {
-  const matches = donations.filter((d) => d.charityId === charityId);
-  const total = matches.reduce((sum, d) => sum + d.amount, 0);
-  return { charityId, count: matches.length, total };
+  donor: string;
+  amount: number;
+};
+
+export async function getAll(): Promise<Donation[]> {
+  const docs = await DonationModel.find();
+  return docs.map((d) => d.toJSON() as unknown as Donation);
+}
+
+export async function getById(id: string): Promise<Donation | null> {
+  const doc = await DonationModel.findById(id);
+  return doc ? (doc.toJSON() as unknown as Donation) : null;
+}
+
+export async function create(input: NewDonation): Promise<Donation> {
+  const doc = await DonationModel.create(input);
+  return doc.toJSON() as unknown as Donation;
+}
+
+export async function remove(id: string): Promise<boolean> {
+  const deleted = await DonationModel.findByIdAndDelete(id);
+  return deleted !== null;
+}
+
+export async function summaryByCharity(
+  charityId: number
+): Promise<{ charityId: number; count: number; total: number }> {
+  const result = await DonationModel.aggregate([
+    { $match: { charityId } },
+    { $group: { _id: "$charityId", count: { $sum: 1 }, total: { $sum: "$amount" } } },
+  ]);
+  if (result.length === 0) {
+    return { charityId, count: 0, total: 0 };
+  }
+  const first = result[0]!;
+  return { charityId, count: first.count as number, total: first.total as number };
 }
