@@ -1,17 +1,13 @@
-import mongoose, { Schema } from "mongoose";
-
-export interface Donation {
-  id: string;
-  charityId: number;
-  donor: string;
-  amount: number;
-}
+import mongoose, { Schema, Types } from "mongoose";
+import type { Charity } from "./charity.model.js";
 
 const donationSchema = new Schema({
-  charityId: { type: Number, required: true },
-  donor: { type: String, required: true },
-  amount: { type: Number, required: true, min: 0 },
+  charityId: { type: Schema.Types.ObjectId, ref: "Charity", required: true },
+  donor:     { type: String, required: true },
+  amount:    { type: Number, required: true, min: 0 },
 });
+
+donationSchema.index({ charityId: 1 });
 
 // expose `id` (string), hide Mongo's `_id` and `__v` from API responses
 donationSchema.set("toJSON", {
@@ -22,5 +18,18 @@ donationSchema.set("toJSON", {
     delete ret["_id"];
   },
 });
+
+// Raw type as stored in MongoDB — charityId is a plain ObjectId
+export type DonationRaw = {
+  charityId: Types.ObjectId;
+  donor: string;
+  amount: number;
+  id: string;
+};
+
+// Type after .populate("charityId") — charityId is the full Charity document
+export type DonationPopulated = Omit<DonationRaw, "charityId"> & {
+  charityId: Charity;
+};
 
 export const DonationModel = mongoose.model("Donation", donationSchema);
